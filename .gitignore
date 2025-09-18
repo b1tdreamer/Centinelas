@@ -1,0 +1,107 @@
+# ======================================
+# 🔐 ARCHIVOS SENSIBLES - NUNCA SUBIR
+# ======================================
+secrets.h
+**/secrets.h
+config/secrets.h
+src/secrets.h
+tests/**/secrets.h
+
+# Archivos de configuración con credenciales
+credentials.json
+config.json
+auth.json
+
+# Tokens y claves API
+*.token
+*.key
+api_keys.txt
+
+# ======================================
+# 🛠️ ARCHIVOS DE DESARROLLO
+# ======================================
+
+# Visual Studio Code
+.vscode/
+.vs/
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+lib_deps/
+
+# Arduino IDE
+*.ino.bak
+*.hex
+*.elf
+*.map
+
+# ======================================
+# 💻 ARCHIVOS DEL SISTEMA
+# ======================================
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.nfs*
+
+# ======================================
+# 📁 DIRECTORIOS TEMPORALES
+# ======================================
+
+# Logs
+logs/
+*.log
+
+# Temporal
+tmp/
+temp/
+cache/
+
+# Builds
+build/
+dist/
+out/
+
+# ======================================
+# 📦 DEPENDENCIAS
+# ======================================
+
+# Node modules (si usas Node.js para herramientas)
+node_modules/
+npm-debug.log*
+
+# Python (si usas scripts Python)
+__pycache__/
+*.pyc
+venv/
+
+# ======================================
+# 🧪 ARCHIVOS DE PRUEBA
+# ======================================
+
+# Datos de prueba sensibles
+test_data_real.json
+production_config.h
+
+# Backups con datos reales
+*_backup_with_credentials.*
+
+# ======================================
+# 📄 DOCUMENTACIÓN SENSIBLE
+# ======================================
+
+# Documentos con información privada
+internal_docs/
+private_notes.md
+deployment_secrets.md

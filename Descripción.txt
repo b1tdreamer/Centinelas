@@ -1,0 +1,48 @@
+# Centinelas del bosque
+
+## Concepto
+
+Son unos dispositivo sencillos, interactivos y artísticos que se conecta a un árbol específico del proyecto
+para, a través de luces tranquilas y agradables, muestran las señales vitales en tiempo real, traduciendo
+los impulsos eléctricos de la planta en experiencias sensoriales de luz o sonido. Este artefacto actúa
+como un vínculo emocional y contemplativo, invitando a las personas a conectarse con la naturaleza de
+manera profunda aun estando en sus casas.
+
+• Monitorea y refleja la actividad bioeléctrica del árbol, simbolizando su "espíritu" y recordándonos
+que es un ser vivo con su propio ritmo.
+• Árbol Totémico: Cada dispositivo se empareja con un árbol específico, convirtiéndolo en un
+símbolo personal para relajarse, enfocarse y conectar emocionalmente.
+• Personalización Física: Diseños disponibles en una variedad de materiales y estéticas:
+Opciones en impresión 3D, corte láser, fieltro.
+Se usarán elementos orgánicos como corteza, ramas o hojas secas del propio árbol.
+• DIY o Preensamblado: Disponible en kits para personas interesadas de la electrónica o
+completamente configurado para uso inmediato.
+• Datos en Tiempo Real: Un código QR en la parte trasera del dispositivo permite acceder a
+información detallada y actualizada del árbol conectado, directamente desde cualquier
+smartphone.
+
+El centinela del bosque no solo es un objeto, sino una obra interactiva que fusiona tecnología, arte y
+sostenibilidad, permitiendo a los usuarios contribuir con la investigación y el proyecto.
+
+Con El Espíritu del Árbol, creamos un puente entre el mundo humano y el vegetal, invitando a nuevas
+formas de conexión y conciencia ecológica.
+
+## Técnicamente
+
+La idea es utilizar un ESP32 1AS Audio kit o un ESP32-LyraT-Mini para que reciba la información de la base de datos en influxdb y convierta esos datos en cambios en la iluminación, a través del aro led neopixel de 8 leds y en sonido, a través del uso de samples y sonidos generados mediante sintetizadores.
+Los sonidos más graves o basados en samples saldrán por los altavoces y usaremos los piezoeléctricos para sonidos agudos y rápidos, como insectos.
+
+Componentes:
+
+- ESP32-LyraT-Mini o ESP32 1AS Audio kit - 16€
+https://www.mouser.es/ProductDetail/Espressif-Systems/ESP32-LyraT-Mini?qs=sGAEpiMZZMu3sxpa5v1qrhi%2FDDEKTlSRcPsz%252BvcjhXA%3D
+
+- Aro led neopixel 8leds: 3€
+https://es.aliexpress.com/item/1005009560996971.html
+
+- Altavoz
+https://www.mouser.es/ProductDetail/PUI-Audio/ASX03304-SM-R?qs=RXK%252BYb%252BisXSx2rLKRkDSow%3D%3D 
+https://www.audiophonics.fr/en/exciters/dayton-audio-daex-9-4sm-speaker-driver-mini-exciter-bodyshaker-1w-4-ohm-o9mm-p-11202.html 
+
+- Piezoelectricos 1 o 2 por centinela
+
