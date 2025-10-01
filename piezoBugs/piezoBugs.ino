@@ -4,13 +4,39 @@
  * Soporte para aro LED Neopixel y control por botones
  */
 
+#include <Adafruit_NeoPixel.h>
+
 // Pines para piezoeléctricos
 #define PIEZO_1_PIN 21  // Insecto 1 (Araña por defecto)
 #define PIEZO_2_PIN 22  // Insecto 2 (Grillo por defecto)
 
 // Pin para aro LED Neopixel (24 LEDs)
 #define NEOPIXEL_PIN 23  // GPIO23 - Pin de datos para Neopixel
-#define NEOPIXEL_COUNT 24 // Número de LEDs en el aro
+#define NEOPIXEL_COUNT 8 // Número de LEDs en el aro
+
+// ============================================
+// CONFIGURACIÓN NEO pixel - Efecto "ola verde"
+// ============================================
+
+// Parámetros de temporización para efecto ola
+const unsigned long LED_DURATION = 3000;      // Tiempo que cada LED permanece encendido (ms)
+const unsigned long LED_INTERVAL = 600;      // Intervalo entre inicio de LEDs consecutivos (ms)
+
+// Parámetros de fade (transiciones suaves)
+const unsigned long FADE_IN_TIME = LED_INTERVAL;   // Tiempo de aparición (fade in) = intervalo
+const unsigned long FADE_OUT_TIME = LED_INTERVAL;  // Tiempo de desaparición (fade out) = intervalo
+
+// Parámetros de apariencia
+const uint8_t NEO_BRIGHTNESS = 30;                // Brillo 0-255
+const uint8_t NEO_COLOR_R = 0;                    // Componente rojo (para verde = 0)
+const uint8_t NEO_COLOR_G = 255;                  // Componente verde (para verde = 255)
+const uint8_t NEO_COLOR_B = 0;                    // Componente azul (para verde = 0)
+
+// Debug (cambiar a true para ver valores de fade en monitor serial)
+const bool DEBUG_FADE = false;                // Activar debug del fade
+
+// Inicialización del objeto NeoPixel
+Adafruit_NeoPixel pixels(NEOPIXEL_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 // Escala pentatónica menor en Do (frecuencias desde octava 2 hasta octava 8)
 // Do, Re, Mi, Fa#, La (octavas 2, 3, 4, 5, 6, 7, 8)
@@ -264,8 +290,8 @@ void setup() {
   Serial.println("========================");
   */
   
-  // Inicializar Neopixel (comentado temporalmente)
-  // initNeopixel();
+  // Inicializar Neopixel
+  initNeopixel();
   
   // Inicializar tiempos
   lastInsect1Time = millis();
@@ -368,8 +394,8 @@ void loop() {
     checkSequenceChange2(currentTime);
   }
   
-  // Actualizar Neopixel (comentado temporalmente)
-  // updateNeopixel(currentTime);
+  // Actualizar Neopixel
+  updateNeopixel(currentTime);
   
   delay(10); // Pequeña pausa para evitar sobrecarga
 }
@@ -580,131 +606,118 @@ void handleButton6(unsigned long currentTime) {
   }
 }
 
-// Funciones para Neopixel (comentadas temporalmente)
-/*
+// Funciones para Neopixel - Efecto "ola verde" con fade
+/**
+ * Calcula el nivel de brillo con fade in/out
+ * @param timeInState: Tiempo transcurrido desde que el LED comenzó a encenderse (ms)
+ * @param totalDuration: Duración total del encendido (ms)
+ * @return: Factor de brillo entre 0.0 y 1.0
+ */
+float calculateFadeBrightness(unsigned long timeInState, unsigned long totalDuration) {
+  float brightness = 0.0;
+  
+  // Fase 1: Fade in (primeros FADE_IN_TIME ms)
+  if (timeInState <= FADE_IN_TIME) {
+    brightness = (float)timeInState / (float)FADE_IN_TIME;
+    // Asegurar que no exceda 1.0
+    if (brightness > 1.0) brightness = 1.0;
+    if (brightness < 0.0) brightness = 0.0;
+    return brightness;
+  }
+  
+  // Fase 3: Fade out (últimos FADE_OUT_TIME ms)
+  if (timeInState >= (totalDuration - FADE_OUT_TIME)) {
+    unsigned long timeUntilEnd = totalDuration - timeInState;
+    brightness = (float)timeUntilEnd / (float)FADE_OUT_TIME;
+    // Asegurar que no exceda 1.0 ni sea negativo
+    if (brightness > 1.0) brightness = 1.0;
+    if (brightness < 0.0) brightness = 0.0;
+    return brightness;
+  }
+  
+  // Fase 2: Estado completo (entre fade in y fade out)
+  return 1.0;
+}
+
 void initNeopixel() {
   // Inicializar el aro de Neopixels
   Serial.println("Neopixel inicializado en GPIO23 (24 LEDs)");
-  Serial.println("Patrón: 1 de cada 5 LEDs encendidos");
+  Serial.println("Efecto: Ola verde con fade suave");
   
-  // Configurar pin como salida
-  pinMode(NEOPIXEL_PIN, OUTPUT);
-  digitalWrite(NEOPIXEL_PIN, LOW);
+  // Inicializar NeoPixel
+  pixels.begin();
+  pixels.setBrightness(NEO_BRIGHTNESS);
+  pixels.clear();
+  pixels.show();
   
-  // Mostrar patrón inicial: 1 de cada 5 LEDs encendidos
-  showNeopixelPattern();
+  Serial.println("NeoPixel listo para efecto ola verde");
 }
-*/
 
-/*
-void showNeopixelPattern() {
-  // Patrón: 1 de cada 5 LEDs encendidos (LEDs 0, 5, 10, 15, 20)
-  // Implementación simplificada para verificar conexión
-  
-  Serial.println("Mostrando patrón Neopixel:");
-  Serial.println("LEDs encendidos: 0, 5, 10, 15, 20");
-  
-  // Reset: mantener pin bajo por 50μs
-  digitalWrite(NEOPIXEL_PIN, LOW);
-  delayMicroseconds(50);
-  
-  // Enviar datos para 24 LEDs
-  for (int led = 0; led < 24; led++) {
-    if (led % 5 == 0) {
-      // LED encendido (verde)
-      sendNeopixelByte(0);   // Red
-      sendNeopixelByte(50);  // Green
-      sendNeopixelByte(0);   // Blue
-    } else {
-      // LED apagado
-      sendNeopixelByte(0);   // Red
-      sendNeopixelByte(0);   // Green
-      sendNeopixelByte(0);   // Blue
-    }
-  }
-  
-  // Finalizar
-  digitalWrite(NEOPIXEL_PIN, LOW);
-  delayMicroseconds(50);
-}
-*/
-
-/*
-void sendNeopixelByte(uint8_t byte) {
-  // Enviar un byte a Neopixel
-  for (int i = 7; i >= 0; i--) {
-    if (byte & (1 << i)) {
-      // Bit 1: HIGH por 0.8μs, LOW por 0.45μs
-      digitalWrite(NEOPIXEL_PIN, HIGH);
-      delayMicroseconds(1);
-      digitalWrite(NEOPIXEL_PIN, LOW);
-      delayMicroseconds(1);
-    } else {
-      // Bit 0: HIGH por 0.4μs, LOW por 0.85μs
-      digitalWrite(NEOPIXEL_PIN, HIGH);
-      delayMicroseconds(1);
-      digitalWrite(NEOPIXEL_PIN, LOW);
-      delayMicroseconds(1);
-    }
-  }
-}
-*/
-
-/*
 void updateNeopixel(unsigned long currentTime) {
-  // Actualizar efectos del aro de Neopixels
-  static unsigned long lastNeopixelUpdate = 0;
-  static bool patternShown = false;
+  // Actualizar efecto de ola verde en el aro de NeoPixels
+  unsigned long cycleTime = NEOPIXEL_COUNT * LED_INTERVAL;
   
-  if (!patternShown) {
-    // Mostrar patrón inicial una vez
-    showNeopixelPattern();
-    patternShown = true;
-    lastNeopixelUpdate = currentTime;
-  }
-  
-  // Actualizar cada 2 segundos con efectos básicos
-  if (currentTime - lastNeopixelUpdate > 2000) {
-    lastNeopixelUpdate = currentTime;
+  // Actualizar estado de cada LED con fade
+  for(int i = 0; i < NEOPIXEL_COUNT; i++) {
+    // Calcular cuántos ciclos completos han pasado
+    unsigned long currentCycle = currentTime / cycleTime;
     
-    // Efecto simple: cambiar color basado en estado del sistema
-    if (soundEnabled) {
-      // Sonido activo: LEDs verdes
-      showNeopixelPattern();
+    // Calcular el tiempo de inicio de este LED en el ciclo actual
+    unsigned long ledStartTimeInCycle = i * LED_INTERVAL;
+    unsigned long ledStartTimeAbsolute = (currentCycle * cycleTime) + ledStartTimeInCycle;
+    
+    // También verificar el ciclo anterior (para permitir que los LEDs completen su fade out)
+    unsigned long ledStartTimePreviousCycle = 0;
+    bool checkPreviousCycle = false;
+    if (currentCycle > 0) {
+      ledStartTimePreviousCycle = ((currentCycle - 1) * cycleTime) + ledStartTimeInCycle;
+      checkPreviousCycle = true;
+    }
+    
+    // Variables para gestionar el estado del LED
+    bool shouldBeOn = false;
+    unsigned long timeInState = 0;
+    
+    // Verificar si el LED está activo en el ciclo actual
+    if (currentTime >= ledStartTimeAbsolute && 
+        currentTime < (ledStartTimeAbsolute + LED_DURATION)) {
+      shouldBeOn = true;
+      timeInState = currentTime - ledStartTimeAbsolute;
+    }
+    // Verificar si el LED todavía está activo del ciclo anterior
+    else if (checkPreviousCycle && 
+             currentTime >= ledStartTimePreviousCycle && 
+             currentTime < (ledStartTimePreviousCycle + LED_DURATION)) {
+      shouldBeOn = true;
+      timeInState = currentTime - ledStartTimePreviousCycle;
+    }
+    
+    // Calcular brillo con fade y aplicar el color
+    if (shouldBeOn) {
+      // Calcular factor de fade (0.0 a 1.0)
+      float fadeFactor = calculateFadeBrightness(timeInState, LED_DURATION);
+      
+      // Debug: Imprimir valores de fade (solo para LED 0 y durante fade in)
+      if (DEBUG_FADE && i == 0 && timeInState <= FADE_IN_TIME) {
+        Serial.println((uint8_t)(NEO_COLOR_G * fadeFactor));
+      }
+      
+      // Aplicar fade al color
+      uint8_t fadedR = (uint8_t)(NEO_COLOR_R * fadeFactor);
+      uint8_t fadedG = (uint8_t)(NEO_COLOR_G * fadeFactor);
+      uint8_t fadedB = (uint8_t)(NEO_COLOR_B * fadeFactor);
+      
+      pixels.setPixelColor(i, pixels.Color(fadedR, fadedG, fadedB));
     } else {
-      // Sonido desactivado: LEDs rojos
-      showNeopixelRedPattern();
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));  // Apagado
     }
   }
+  
+  // Actualizar físicamente los LEDs
+  pixels.show();
 }
-*/
 
-/*
-void showNeopixelRedPattern() {
-  // Patrón rojo para cuando el sonido está desactivado
-  Serial.println("Mostrando patrón rojo (sonido desactivado)");
-  
-  digitalWrite(NEOPIXEL_PIN, LOW);
-  delayMicroseconds(50);
-  
-  for (int led = 0; led < 24; led++) {
-    if (led % 5 == 0) {
-      // LED encendido (rojo)
-      sendNeopixelByte(50);  // Red
-      sendNeopixelByte(0);   // Green
-      sendNeopixelByte(0);   // Blue
-    } else {
-      // LED apagado
-      sendNeopixelByte(0);   // Red
-      sendNeopixelByte(0);   // Green
-      sendNeopixelByte(0);   // Blue
-    }
-  }
-  
-  digitalWrite(NEOPIXEL_PIN, LOW);
-  delayMicroseconds(50);
-}
-*/
+
 
 // Funciones para manejo de insectos
 void handleInsect1(unsigned long currentTime) {
