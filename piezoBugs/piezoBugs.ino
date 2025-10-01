@@ -38,6 +38,9 @@ const bool DEBUG_FADE = false;                // Activar debug del fade
 // Inicialización del objeto NeoPixel
 Adafruit_NeoPixel pixels(NEOPIXEL_COUNT, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
+// Array para rastrear qué LEDs se pusieron blancos durante la secuencia de la araña
+bool ledWasWhite[NEOPIXEL_COUNT] = {false};
+
 // Escala pentatónica menor en Do (frecuencias desde octava 2 hasta octava 8)
 // Do, Re, Mi, Fa#, La (octavas 2, 3, 4, 5, 6, 7, 8)
 const int pentatonicScale[] = {
@@ -657,6 +660,16 @@ void updateNeopixel(unsigned long currentTime) {
   // Actualizar efecto de ola verde en el aro de NeoPixels
   unsigned long cycleTime = NEOPIXEL_COUNT * LED_INTERVAL;
   
+  // Detectar si el insecto araña está sonando
+  bool spiderIsPlaying = (insect1Type == SPIDER && insect1Active && !insect1Muted);
+  
+  // Resetear el array de LEDs blancos cuando la araña no está sonando
+  if (!spiderIsPlaying) {
+    for(int i = 0; i < NEOPIXEL_COUNT; i++) {
+      ledWasWhite[i] = false;
+    }
+  }
+  
   // Actualizar estado de cada LED con fade
   for(int i = 0; i < NEOPIXEL_COUNT; i++) {
     // Calcular cuántos ciclos completos han pasado
@@ -677,12 +690,20 @@ void updateNeopixel(unsigned long currentTime) {
     // Variables para gestionar el estado del LED
     bool shouldBeOn = false;
     unsigned long timeInState = 0;
+    bool isNewLED = false; // Indica si este LED se acaba de encender en el ciclo actual
     
     // Verificar si el LED está activo en el ciclo actual
     if (currentTime >= ledStartTimeAbsolute && 
         currentTime < (ledStartTimeAbsolute + LED_DURATION)) {
       shouldBeOn = true;
       timeInState = currentTime - ledStartTimeAbsolute;
+      // Verificar si es un LED nuevo (se encendió recientemente)
+      isNewLED = (currentTime - ledStartTimeAbsolute) <= FADE_IN_TIME;
+      
+      // Marcar como blanco si la araña está sonando y es un LED nuevo
+      if (spiderIsPlaying && isNewLED) {
+        ledWasWhite[i] = true;
+      }
     }
     // Verificar si el LED todavía está activo del ciclo anterior
     else if (checkPreviousCycle && 
@@ -690,6 +711,7 @@ void updateNeopixel(unsigned long currentTime) {
              currentTime < (ledStartTimePreviousCycle + LED_DURATION)) {
       shouldBeOn = true;
       timeInState = currentTime - ledStartTimePreviousCycle;
+      isNewLED = false; // LED del ciclo anterior, no es nuevo
     }
     
     // Calcular brillo con fade y aplicar el color
@@ -702,22 +724,44 @@ void updateNeopixel(unsigned long currentTime) {
         Serial.println((uint8_t)(NEO_COLOR_G * fadeFactor));
       }
       
+      // Determinar color según si el LED fue marcado como blanco
+      uint8_t currentR, currentG, currentB;
+      
+      if (ledWasWhite[i]) {
+        // LED que fue marcado como blanco: mantener blanco
+        currentR = 255;
+        currentG = 255;
+        currentB = 255;
+      } else {
+        // Comportamiento normal: color verde
+        currentR = NEO_COLOR_R;
+        currentG = NEO_COLOR_G;
+        currentB = NEO_COLOR_B;
+      }
+      
       // Aplicar fade al color
-      uint8_t fadedR = (uint8_t)(NEO_COLOR_R * fadeFactor);
-      uint8_t fadedG = (uint8_t)(NEO_COLOR_G * fadeFactor);
-      uint8_t fadedB = (uint8_t)(NEO_COLOR_B * fadeFactor);
+      uint8_t fadedR = (uint8_t)(currentR * fadeFactor);
+      uint8_t fadedG = (uint8_t)(currentG * fadeFactor);
+      uint8_t fadedB = (uint8_t)(currentB * fadeFactor);
       
       pixels.setPixelColor(i, pixels.Color(fadedR, fadedG, fadedB));
     } else {
       pixels.setPixelColor(i, pixels.Color(0, 0, 0));  // Apagado
+      // Resetear el estado cuando el LED se apaga
+      ledWasWhite[i] = false;
     }
+  }
+  
+  // Actualizar brillo global según si la araña está sonando
+  if (spiderIsPlaying) {
+    pixels.setBrightness(50);
+  } else {
+    pixels.setBrightness(NEO_BRIGHTNESS);
   }
   
   // Actualizar físicamente los LEDs
   pixels.show();
 }
-
-
 
 // Funciones para manejo de insectos
 void handleInsect1(unsigned long currentTime) {
