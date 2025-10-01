@@ -41,7 +41,7 @@ const unsigned long FADE_IN_TIME = LED_INTERVAL;   // Tiempo de aparición (fade
 const unsigned long FADE_OUT_TIME = LED_INTERVAL;  // Tiempo de desaparición (fade out) = intervalo
 
 // Parámetros de apariencia
-const uint8_t BRIGHTNESS = 76;                // Brillo 0-255 (76 = 30%)
+const uint8_t BRIGHTNESS = 50;                // Brillo 0-255 (76 = 30%)
 const uint8_t COLOR_R = 0;                    // Componente rojo (para verde = 0)
 const uint8_t COLOR_G = 255;                  // Componente verde (para verde = 255)
 const uint8_t COLOR_B = 0;                    // Componente azul (para verde = 0)
@@ -93,65 +93,21 @@ void setup() {
   Serial.begin(115200);
   delay(500);  // Pequeña pausa para estabilizar serial
   
-  Serial.println("\n========================================");
-  Serial.println("NeoPixel Ring - Secuencia Verde con Fade");
-  Serial.println("========================================");
-  
   // Inicializar NeoPixel
   pixels.begin();
   pixels.setBrightness(BRIGHTNESS);
   pixels.clear();
   pixels.show();
   
-  // Mostrar configuración
-  Serial.println("\nConfiguración:");
-  Serial.print("  - Número de LEDs: ");
-  Serial.println(LED_COUNT);
-  Serial.print("  - Pin de datos: GPIO");
-  Serial.println(LED_PIN);
-  Serial.print("  - Duración LED: ");
-  Serial.print(LED_DURATION);
-  Serial.println(" ms");
-  Serial.print("  - Intervalo: ");
-  Serial.print(LED_INTERVAL);
-  Serial.println(" ms");
-  Serial.print("  - Fade in: ");
-  Serial.print(FADE_IN_TIME);
-  Serial.println(" ms (igual al intervalo)");
-  Serial.print("  - Fade out: ");
-  Serial.print(FADE_OUT_TIME);
-  Serial.println(" ms (igual al intervalo)");
-  Serial.print("  - Brillo: ");
-  Serial.print(BRIGHTNESS);
-  Serial.print("/255 (");
-  Serial.print((BRIGHTNESS * 100) / 255);
-  Serial.println("%)");
-  Serial.print("  - Color RGB: (");
-  Serial.print(COLOR_R);
-  Serial.print(", ");
-  Serial.print(COLOR_G);
-  Serial.print(", ");
-  Serial.print(COLOR_B);
-  Serial.println(")");
-  
   // Calcular y mostrar timing del ciclo
   unsigned long cycleTime = LED_COUNT * LED_INTERVAL;
-  Serial.print("  - Tiempo ciclo total: ");
-  Serial.print(cycleTime);
-  Serial.print(" ms (");
-  Serial.print(cycleTime / 1000.0);
-  Serial.println(" segundos)");
   
   // Calcular LEDs simultáneos aproximados
   int simultaneousLEDs = (LED_DURATION / LED_INTERVAL) + 1;
   if (simultaneousLEDs > LED_COUNT) {
     simultaneousLEDs = LED_COUNT;
   }
-  Serial.print("  - LEDs simultáneos (aprox): ");
-  Serial.println(simultaneousLEDs);
-  
-  Serial.println("\n¡Iniciando secuencia!\n");
-  Serial.println("========================================");
+
 }
 
 
@@ -202,11 +158,6 @@ void loop() {
       
       // Debug: Imprimir valores de fade (solo para LED 0 y durante fade in)
       if (DEBUG_FADE && i == 0 && timeInState <= FADE_IN_TIME) {
-        Serial.print("LED 0 - Time: ");
-        Serial.print(timeInState);
-        Serial.print(" ms, Fade: ");
-        Serial.print(fadeFactor, 3);
-        Serial.print(", G: ");
         Serial.println((uint8_t)(COLOR_G * fadeFactor));
       }
       
