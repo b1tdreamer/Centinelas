@@ -1,244 +1,231 @@
 /*
- * NeoPixel Fade Wave - ESP32 AudioKit 2.2
+ * Test Secuencial NeoPixel con Fade - ESP32 AudioKit 2.2
  * 
- * Efecto de onda con fade en aro LED NeoPixel de 8 píxeles
- * - Cada LED hace un fade de 0% a 50% de brillo
- * - Los LEDs empiezan en secuencia creando una onda
- * - Ciclo continuo alrededor del aro
+ * Descripción:
+ * Control de aro LED NeoPixel de 8 píxeles conectado al GPIO23.
+ * Efecto de "ola verde" secuencial con transiciones suaves (fade).
  * 
  * Hardware:
- * - ESP32 AudioKit v2.2
+ * - ESP32 AudioKit 2.2
  * - Aro NeoPixel WS2812B de 8 LEDs
  * - Pin de datos: GPIO23
  * 
- * Librería requerida:
- * - Adafruit NeoPixel (instalar desde Library Manager)
+ * Comportamiento:
+ * - Cada LED se enciende durante 3 segundos en color verde
+ * - Fade in suave de 1000ms al aparecer (igual al intervalo)
+ * - Fade out suave de 1000ms al desaparecer (igual al intervalo)
+ * - Nuevo LED comienza cada 1000ms (intervalo ajustable)
+ * - Múltiples LEDs encendidos simultáneamente creando efecto "ola"
+ * - Ciclo se repite indefinidamente sin cortes
  */
 
 #include <Adafruit_NeoPixel.h>
 
-// ===== CONFIGURACIÓN DE HARDWARE =====
+// ============================================
+// DEFINICIONES HARDWARE
+// ============================================
 #define LED_PIN       23      // GPIO23 - Pin de datos NeoPixel
 #define LED_COUNT     8       // 8 LEDs en el aro
 
-// ===== CONFIGURACIÓN DE TIMING =====
-#define CYCLE_TIME    3000    // Tiempo de ciclo completo por LED (ms) - 3.5 segundos
-#define LED_DELAY     700     // Retraso entre el inicio de cada LED (ms)
+// ============================================
+// CONFIGURACIÓN - Modificar aquí los valores
+// ============================================
 
-// ===== CONFIGURACIÓN DE BRILLO =====
-#define MAX_BRIGHTNESS_PERCENT  30    // Brillo máximo en porcentaje (0-100) - Modo pasivo
-#define EVENT_BRIGHTNESS_PERCENT 50   // Brillo durante evento de sonido (0-100)
+// Parámetros de temporización
+const unsigned long LED_DURATION = 3000;      // Tiempo que cada LED permanece encendido (ms)
+const unsigned long LED_INTERVAL = 600;      // Intervalo entre inicio de LEDs consecutivos (ms)
 
-// ===== CONFIGURACIÓN DE COLOR =====
-// Valores RGB base (0-255) - Se aplicará el fade sobre estos valores
-#define COLOR_RED      20     // Componente rojo
-#define COLOR_GREEN    150    // Componente verde (dominante para verde claro)
-#define COLOR_BLUE     20     // Componente azul
+// Parámetros de fade (transiciones suaves)
+// Fade in y fade out iguales al intervalo para efecto simétrico
+const unsigned long FADE_IN_TIME = LED_INTERVAL;   // Tiempo de aparición (fade in) = intervalo
+const unsigned long FADE_OUT_TIME = LED_INTERVAL;  // Tiempo de desaparición (fade out) = intervalo
 
-// Color durante evento de sonido (blanco)
-#define EVENT_COLOR_RED    255
-#define EVENT_COLOR_GREEN  255
-#define EVENT_COLOR_BLUE   255
+// Parámetros de apariencia
+const uint8_t BRIGHTNESS = 76;                // Brillo 0-255 (76 = 30%)
+const uint8_t COLOR_R = 0;                    // Componente rojo (para verde = 0)
+const uint8_t COLOR_G = 255;                  // Componente verde (para verde = 255)
+const uint8_t COLOR_B = 0;                    // Componente azul (para verde = 0)
 
-// ===== CONFIGURACIÓN DE EVENTOS DE SONIDO =====
-#define SOUND_EVENT_INTERVAL  4000    // Intervalo entre eventos (ms) - 4 segundos
-#define SOUND_EVENT_DURATION  700     // Duración del evento (ms) - 0.7 segundos
+// Debug (cambiar a true para ver valores de fade en monitor serial)
+const bool DEBUG_FADE = false;                // Activar debug del fade
 
-// Calcular brillo máximo en escala 0-255
-const uint8_t MAX_BRIGHTNESS = (255 * MAX_BRIGHTNESS_PERCENT) / 100;
-const uint8_t EVENT_BRIGHTNESS = (255 * EVENT_BRIGHTNESS_PERCENT) / 100;
+// ============================================
 
-// Crear objeto NeoPixel
+// Inicialización del objeto NeoPixel
 Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// Variables de tiempo
-unsigned long startTime = 0;
-unsigned long lastEventTime = 0;
 
-// Variables de estado
-bool isSoundEventActive = false;
+/**
+ * Calcula el nivel de brillo con fade in/out
+ * @param timeInState: Tiempo transcurrido desde que el LED comenzó a encenderse (ms)
+ * @param totalDuration: Duración total del encendido (ms)
+ * @return: Factor de brillo entre 0.0 y 1.0
+ */
+float calculateFadeBrightness(unsigned long timeInState, unsigned long totalDuration) {
+  float brightness = 0.0;
+  
+  // Fase 1: Fade in (primeros FADE_IN_TIME ms)
+  if (timeInState <= FADE_IN_TIME) {
+    brightness = (float)timeInState / (float)FADE_IN_TIME;
+    // Asegurar que no exceda 1.0
+    if (brightness > 1.0) brightness = 1.0;
+    if (brightness < 0.0) brightness = 0.0;
+    return brightness;
+  }
+  
+  // Fase 3: Fade out (últimos FADE_OUT_TIME ms)
+  if (timeInState >= (totalDuration - FADE_OUT_TIME)) {
+    unsigned long timeUntilEnd = totalDuration - timeInState;
+    brightness = (float)timeUntilEnd / (float)FADE_OUT_TIME;
+    // Asegurar que no exceda 1.0 ni sea negativo
+    if (brightness > 1.0) brightness = 1.0;
+    if (brightness < 0.0) brightness = 0.0;
+    return brightness;
+  }
+  
+  // Fase 2: Estado completo (entre fade in y fade out)
+  return 1.0;
+}
+
 
 void setup() {
-  // Inicializar comunicación serial para debug
+  // Inicializar comunicación serial
   Serial.begin(115200);
-  delay(100);
+  delay(500);  // Pequeña pausa para estabilizar serial
   
-  Serial.println("\n==========================================");
-  Serial.println("NeoPixel Fade Wave - ESP32 AudioKit");
-  Serial.println("==========================================");
-  Serial.print("Pin de datos: GPIO");
-  Serial.println(LED_PIN);
-  Serial.print("Cantidad de LEDs: ");
-  Serial.println(LED_COUNT);
-  Serial.println("------------------------------------------");
-  Serial.print("Brillo pasivo: ");
-  Serial.print(MAX_BRIGHTNESS_PERCENT);
-  Serial.println("%");
-  Serial.print("Color pasivo RGB: (");
-  Serial.print(COLOR_RED);
-  Serial.print(", ");
-  Serial.print(COLOR_GREEN);
-  Serial.print(", ");
-  Serial.print(COLOR_BLUE);
-  Serial.println(")");
-  Serial.println("------------------------------------------");
-  Serial.print("Brillo evento: ");
-  Serial.print(EVENT_BRIGHTNESS_PERCENT);
-  Serial.println("%");
-  Serial.print("Color evento RGB: (");
-  Serial.print(EVENT_COLOR_RED);
-  Serial.print(", ");
-  Serial.print(EVENT_COLOR_GREEN);
-  Serial.print(", ");
-  Serial.print(EVENT_COLOR_BLUE);
-  Serial.println(") - Blanco");
-  Serial.println("------------------------------------------");
-  Serial.print("Tiempo de ciclo: ");
-  Serial.print(CYCLE_TIME);
-  Serial.println(" ms");
-  Serial.print("Retraso entre LEDs: ");
-  Serial.print(LED_DELAY);
-  Serial.println(" ms");
-  Serial.print("Evento cada: ");
-  Serial.print(SOUND_EVENT_INTERVAL);
-  Serial.println(" ms");
-  Serial.print("Duración evento: ");
-  Serial.print(SOUND_EVENT_DURATION);
-  Serial.println(" ms");
-  Serial.println("==========================================\n");
+  Serial.println("\n========================================");
+  Serial.println("NeoPixel Ring - Secuencia Verde con Fade");
+  Serial.println("========================================");
   
   // Inicializar NeoPixel
   pixels.begin();
-  pixels.setBrightness(150);  // Control de brillo manual
+  pixels.setBrightness(BRIGHTNESS);
   pixels.clear();
   pixels.show();
   
-  Serial.println("✓ NeoPixel inicializado correctamente");
-  Serial.println("✓ Iniciando efecto de onda con fade...\n");
+  // Mostrar configuración
+  Serial.println("\nConfiguración:");
+  Serial.print("  - Número de LEDs: ");
+  Serial.println(LED_COUNT);
+  Serial.print("  - Pin de datos: GPIO");
+  Serial.println(LED_PIN);
+  Serial.print("  - Duración LED: ");
+  Serial.print(LED_DURATION);
+  Serial.println(" ms");
+  Serial.print("  - Intervalo: ");
+  Serial.print(LED_INTERVAL);
+  Serial.println(" ms");
+  Serial.print("  - Fade in: ");
+  Serial.print(FADE_IN_TIME);
+  Serial.println(" ms (igual al intervalo)");
+  Serial.print("  - Fade out: ");
+  Serial.print(FADE_OUT_TIME);
+  Serial.println(" ms (igual al intervalo)");
+  Serial.print("  - Brillo: ");
+  Serial.print(BRIGHTNESS);
+  Serial.print("/255 (");
+  Serial.print((BRIGHTNESS * 100) / 255);
+  Serial.println("%)");
+  Serial.print("  - Color RGB: (");
+  Serial.print(COLOR_R);
+  Serial.print(", ");
+  Serial.print(COLOR_G);
+  Serial.print(", ");
+  Serial.print(COLOR_B);
+  Serial.println(")");
   
-  // Guardar tiempo de inicio
-  startTime = millis();
+  // Calcular y mostrar timing del ciclo
+  unsigned long cycleTime = LED_COUNT * LED_INTERVAL;
+  Serial.print("  - Tiempo ciclo total: ");
+  Serial.print(cycleTime);
+  Serial.print(" ms (");
+  Serial.print(cycleTime / 1000.0);
+  Serial.println(" segundos)");
   
-  delay(500);
+  // Calcular LEDs simultáneos aproximados
+  int simultaneousLEDs = (LED_DURATION / LED_INTERVAL) + 1;
+  if (simultaneousLEDs > LED_COUNT) {
+    simultaneousLEDs = LED_COUNT;
+  }
+  Serial.print("  - LEDs simultáneos (aprox): ");
+  Serial.println(simultaneousLEDs);
+  
+  Serial.println("\n¡Iniciando secuencia!\n");
+  Serial.println("========================================");
 }
 
-/**
- * Calcula el brillo de un LED basado en su fase en el ciclo
- * Usa una función sinusoidal para un fade suave
- * 
- * @param phase: valor entre 0.0 y 1.0 representando la posición en el ciclo
- * @param maxBrightness: brillo máximo a alcanzar
- * @return: valor de brillo entre 0 y maxBrightness
- */
-uint8_t calculateBrightness(float phase, uint8_t maxBrightness) {
-  // Asegurar que phase está en rango [0, 1]
-  while (phase > 1.0f) phase -= 1.0f;
-  while (phase < 0.0f) phase += 1.0f;
-  
-  // Usar función sinusoidal para fade suave
-  // sin() va de -1 a 1, ajustamos a 0 a 1
-  float brightness = (sin(phase * 2.0f * PI - PI/2.0f) + 1.0f) / 2.0f;
-  
-  // Escalar al brillo máximo especificado
-  return (uint8_t)(brightness * maxBrightness);
-}
 
 void loop() {
-  // Obtener tiempo transcurrido desde el inicio
+  // Obtener tiempo actual
   unsigned long currentTime = millis();
-  unsigned long elapsedTime = currentTime - startTime;
+  unsigned long cycleTime = LED_COUNT * LED_INTERVAL;
   
-  // ===== GESTIÓN DE EVENTOS DE SONIDO =====
-  // Verificar si debe iniciarse un nuevo evento
-  if (!isSoundEventActive && (currentTime - lastEventTime >= SOUND_EVENT_INTERVAL)) {
-    isSoundEventActive = true;
-    lastEventTime = currentTime;
-    Serial.println("🔊 EVENTO DE SONIDO INICIADO - LEDs activos cambiarán a BLANCO (50%)");
-  }
-  
-  // Verificar si debe finalizar el evento actual
-  if (isSoundEventActive && (currentTime - lastEventTime >= SOUND_EVENT_DURATION)) {
-    isSoundEventActive = false;
-    Serial.println("🟢 Evento finalizado - Todos vuelven a modo pasivo\n");
-  }
-  
-  // ===== ACTUALIZAR CADA LED =====
-  for (int i = 0; i < LED_COUNT; i++) {
-    // Calcular el offset de tiempo para este LED
-    unsigned long ledOffset = i * LED_DELAY;
+  // Actualizar estado de cada LED con fade
+  for(int i = 0; i < LED_COUNT; i++) {
+    // Calcular cuántos ciclos completos han pasado
+    unsigned long currentCycle = currentTime / cycleTime;
     
-    // Calcular el tiempo efectivo para este LED
-    long ledTime = elapsedTime - ledOffset;
+    // Calcular el tiempo de inicio de este LED en el ciclo actual
+    unsigned long ledStartTimeInCycle = i * LED_INTERVAL;
+    unsigned long ledStartTimeAbsolute = (currentCycle * cycleTime) + ledStartTimeInCycle;
     
-    // Si el LED aún no ha comenzado su ciclo, mantenerlo apagado
-    if (ledTime < 0) {
-      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
-      continue;
+    // También verificar el ciclo anterior (para permitir que los LEDs completen su fade out)
+    unsigned long ledStartTimePreviousCycle = 0;
+    bool checkPreviousCycle = false;
+    if (currentCycle > 0) {
+      ledStartTimePreviousCycle = ((currentCycle - 1) * cycleTime) + ledStartTimeInCycle;
+      checkPreviousCycle = true;
     }
     
-    // Calcular la fase del ciclo (0.0 a 1.0)
-    float phase = (float)(ledTime % CYCLE_TIME) / (float)CYCLE_TIME;
+    // Variables para gestionar el estado del LED
+    bool shouldBeOn = false;
+    unsigned long timeInState = 0;
     
-    // ===== DETERMINAR SI ESTE LED ESPECÍFICO DEBE USAR MODO EVENTO =====
-    // Un LED usa modo evento si está "encendiéndose" durante el período del evento
-    // Calculamos cuánto tiempo hace que este LED comenzó su ciclo actual
-    unsigned long timeSinceThisLedCycleStart = ledTime % CYCLE_TIME;
+    // Verificar si el LED está activo en el ciclo actual
+    if (currentTime >= ledStartTimeAbsolute && 
+        currentTime < (ledStartTimeAbsolute + LED_DURATION)) {
+      shouldBeOn = true;
+      timeInState = currentTime - ledStartTimeAbsolute;
+    }
+    // Verificar si el LED todavía está activo del ciclo anterior
+    else if (checkPreviousCycle && 
+             currentTime >= ledStartTimePreviousCycle && 
+             currentTime < (ledStartTimePreviousCycle + LED_DURATION)) {
+      shouldBeOn = true;
+      timeInState = currentTime - ledStartTimePreviousCycle;
+    }
     
-    // Verificar si este LED comenzó su ciclo durante el evento activo
-    bool thisLedUsesEventMode = false;
-    if (isSoundEventActive) {
-      // Calcular cuánto tiempo ha pasado desde que empezó el evento
-      unsigned long timeSinceEventStart = currentTime - lastEventTime;
+    // Calcular brillo con fade y aplicar el color
+    if (shouldBeOn) {
+      // Calcular factor de fade (0.0 a 1.0)
+      float fadeFactor = calculateFadeBrightness(timeInState, LED_DURATION);
       
-      // Tiempo absoluto cuando este LED comenzó su ciclo actual
-      unsigned long thisLedCycleStartTime = elapsedTime - timeSinceThisLedCycleStart;
-      unsigned long eventStartTime = elapsedTime - timeSinceEventStart;
-      
-      // Este LED usa modo evento si su ciclo comenzó durante el evento
-      if (thisLedCycleStartTime >= eventStartTime && 
-          thisLedCycleStartTime < (eventStartTime + SOUND_EVENT_DURATION)) {
-        thisLedUsesEventMode = true;
+      // Debug: Imprimir valores de fade (solo para LED 0 y durante fade in)
+      if (DEBUG_FADE && i == 0 && timeInState <= FADE_IN_TIME) {
+        Serial.print("LED 0 - Time: ");
+        Serial.print(timeInState);
+        Serial.print(" ms, Fade: ");
+        Serial.print(fadeFactor, 3);
+        Serial.print(", G: ");
+        Serial.println((uint8_t)(COLOR_G * fadeFactor));
       }
-    }
-    
-    // Seleccionar parámetros según si este LED específico está en modo evento
-    uint8_t currentMaxBrightness;
-    uint8_t currentColorR, currentColorG, currentColorB;
-    
-    if (thisLedUsesEventMode) {
-      // Modo evento para este LED: Blanco al 50%
-      currentMaxBrightness = EVENT_BRIGHTNESS;
-      currentColorR = EVENT_COLOR_RED;
-      currentColorG = EVENT_COLOR_GREEN;
-      currentColorB = EVENT_COLOR_BLUE;
+      
+      // Aplicar fade al color
+      uint8_t fadedR = (uint8_t)(COLOR_R * fadeFactor);
+      uint8_t fadedG = (uint8_t)(COLOR_G * fadeFactor);
+      uint8_t fadedB = (uint8_t)(COLOR_B * fadeFactor);
+      
+      pixels.setPixelColor(i, pixels.Color(fadedR, fadedG, fadedB));
     } else {
-      // Modo pasivo para este LED: Verde claro al 30%
-      currentMaxBrightness = MAX_BRIGHTNESS;
-      currentColorR = COLOR_RED;
-      currentColorG = COLOR_GREEN;
-      currentColorB = COLOR_BLUE;
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));  // Apagado
     }
-    
-    // Calcular el brillo usando la función de fade con el brillo máximo actual
-    uint8_t brightness = calculateBrightness(phase, currentMaxBrightness);
-    
-    // Calcular factor de brillo (0.0 a 1.0)
-    float brightnessFactor = (float)brightness / (float)currentMaxBrightness;
-    
-    // Aplicar el factor de brillo a cada componente de color
-    uint8_t r = (uint8_t)(currentColorR * brightnessFactor);
-    uint8_t g = (uint8_t)(currentColorG * brightnessFactor);
-    uint8_t b = (uint8_t)(currentColorB * brightnessFactor);
-    
-    // Aplicar el color con fade
-    pixels.setPixelColor(i, pixels.Color(r, g, b));
   }
   
-  // Aplicar todos los cambios
+  // Actualizar físicamente los LEDs
   pixels.show();
   
-  // Pequeño delay para estabilidad (no bloqueante en términos prácticos)
-  delay(10);
+  // Pequeño delay para estabilidad (no afecta el timing basado en millis)
+  // Reducido a 5ms para mejor resolución en el fade
+  delay(5);
 }
-
 
